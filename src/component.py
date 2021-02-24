@@ -35,7 +35,7 @@ KEY_DEBUG = 'debug'
 MANDATORY_PARS = ['#api_key','#private_key']
 MANDATORY_IMAGE_PARS = []
 
-APP_VERSION = '0.1.0'
+APP_VERSION = '0.1.2'
 
 def encrypt_string(hash_string):
     """Encrypts a string with sha256
@@ -109,7 +109,7 @@ def get_json_response(params):
         json_response = dict(xmltodict.parse(response.text)["DetailResult"])
         return json_response
     else:
-        print(f"Error : ico {params['ico']} is not a valid ico in the Finstat database")
+        logging.info(f"Error : ico {params['ico']} is not a valid ico in the Finstat database")
         return False
 
 
@@ -173,21 +173,26 @@ class Component(KBCEnvHandler):
             .replace(" ", "-")\
             .replace(":", "-")\
             .split(".")[0]
-        filename = "finstat-out-"+current_datetime+'.csv'
+
+        response_filename = "finstat-out-"+current_datetime+'.csv'
+        bad_ico_filename = "finstat-bad-ico-out-" + current_datetime + '.csv'
 
         SOURCE_FILE_PATH = self.get_input_tables_definitions()[0].full_path
-        RESULT_FILE_PATH = os.path.join(self.tables_out_path, filename)
+        RESULT_FILE_PATH = os.path.join(self.tables_out_path, response_filename)
+        NO_RESULT_FILE_PATH = os.path.join(self.tables_out_path, bad_ico_filename)
 
         PARAM_API_KEY = params['#api_key']
         PARAM_PRIVATE_KEY = params['#private_key']
 
         #  make manifest file for output, set primary key and incremental load
         self.configuration.write_table_manifest(file_name=RESULT_FILE_PATH)
+        self.configuration.write_table_manifest(file_name=NO_RESULT_FILE_PATH)
 
-        print('Running...')
+        logging.info('Running ....')
         with open(SOURCE_FILE_PATH, 'r') as input:
             icos = get_icos_from_file(input)
             json_responses = []
+            bad_ico = []
 
             for ico in icos:
                 hash_key = get_hash(PARAM_API_KEY, PARAM_PRIVATE_KEY, str(ico))
@@ -195,18 +200,26 @@ class Component(KBCEnvHandler):
                 PARAMS = {'ico': str(ico),
                           "apiKey": PARAM_API_KEY,
                           "Hash": hash_key}
-                print(f"Getting Finstat data for ico : {ico}")
+                logging.info(f"Getting Finstat data for ico : {ico}")
                 response = get_json_response(PARAMS)
                 if response:
                     json_responses.append(response)
+                else:
+                    bad_ico.append({"unavailable_ico": ico})
 
             for i, response in enumerate(json_responses):
                 json_responses[i] = flatten_json(json_responses[i], "__")
 
-        dfItem = pd.DataFrame.from_records(json_responses)
-        dfItem.to_csv(RESULT_FILE_PATH, index=False)
-
-        print(RESULT_FILE_PATH)
+        if len(json_responses) > 0:
+            response_df = pd.DataFrame.from_records(json_responses)
+            response_df.to_csv(RESULT_FILE_PATH, index=False)
+            bad_ico_df = pd.DataFrame.from_records(bad_ico)
+            bad_ico_df.to_csv(NO_RESULT_FILE_PATH, index=False)
+        else:
+            logging.info(f"Error : No output. "
+                         f"Your API keys might be incorrect or"
+                         f"all ICO inputs are invalid")
+            exit(1)
 
         # print state file
         previous_state = self.get_state_file()

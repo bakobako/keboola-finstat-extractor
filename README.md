@@ -29,6 +29,17 @@ API code - received from your Finstat account
 ## Param 2 : Private key 
 Private key - received from your Finstat account
 
+## Param 2 : Request type 
+Based on your Finstat API account you will have access to different API calls.
+
+For example Premium API users can only use the "detail" API calls
+
+Elite API users can use the "extended" calls that give more data
+
+Ultimate API users can use "ultimate" calls that give more data.
+
+The API data retrieved can be seen in the Finstat API documentation 
+
 
 ## Deployment in Keboola
 

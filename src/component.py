@@ -35,7 +35,7 @@ KEY_DEBUG = 'debug'
 MANDATORY_PARS = ['#api_key','#private_key',"request_type"]
 MANDATORY_IMAGE_PARS = []
 
-APP_VERSION = '0.1.3'
+APP_VERSION = '0.1.4'
 
 def encrypt_string(hash_string):
     """Encrypts a string with sha256
@@ -107,10 +107,10 @@ def get_json_response(params,url,request_type):
     if response.status_code == 200:
         # If successful return the result
         json_response = dict(xmltodict.parse(response.text)["DetailResult"])
-        return json_response
+        return json_response, response.text
     else:
         logging.info(f"Error : ico {params['ico']} is not a valid ico in the Finstat database")
-        return False
+        return False , response.text
 
 
 def get_icos_from_file(filepath):
@@ -186,7 +186,7 @@ class Component(KBCEnvHandler):
         PARAM_REQUEST_TYPE = params['request_type']
 
         if PARAM_REQUEST_TYPE not in ["detail","extended","ultimate"]:
-            logging.error('API request type is not available, choose from the list'
+            logging.error('Your API request type is not available, choose from the list'
                           ' : detail, extended, ultimate')
             exit(1)
 
@@ -198,7 +198,7 @@ class Component(KBCEnvHandler):
         try:
             f = open(SOURCE_FILE_PATH)
         except IOError:
-            logging.error('Input ICO file is not accessible,'
+            logging.error('Your input ICO file is not accessible,'
                          ' make sure it is added in the input mapping')
             exit(1)
 
@@ -213,7 +213,7 @@ class Component(KBCEnvHandler):
                       "apiKey": PARAM_API_KEY,
                       "Hash": hash_key}
             logging.info(f"Getting Finstat data for ico : {ico}")
-            response = get_json_response(PARAMS,URL,PARAM_REQUEST_TYPE)
+            response, response_text = get_json_response(PARAMS,URL,PARAM_REQUEST_TYPE)
             if response:
                 json_responses.append(response)
             else:
@@ -228,9 +228,10 @@ class Component(KBCEnvHandler):
             bad_ico_df = pd.DataFrame.from_records(bad_ico)
             bad_ico_df.to_csv(NO_RESULT_FILE_PATH, index=False)
         else:
-            logging.info(f"Error : No output. "
-                         f"Your API keys might be incorrect or"
-                         f"all ICO inputs are invalid")
+            logging.error(f"Error : No output. "
+                         f"Your API request type or keys might be incorrect or"
+                         f" all ICO inputs are invalid")
+            logging.info(f"Response from Finstat:" + response_text)
             exit(1)
 
         # print state file

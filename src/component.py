@@ -25,17 +25,17 @@ from pathlib import Path
 from kbc.env_handler import KBCEnvHandler
 
 # configuration variables
-URL = "https://finstat.sk/api/detail"
+URL = "https://finstat.sk/api/"
 
 # #### Keep for debug
 KEY_DEBUG = 'debug'
 
 # list of mandatory parameters => if some is missing,
 # component will fail with readable message on initialization.
-MANDATORY_PARS = ['#api_key','#private_key']
+MANDATORY_PARS = ['#api_key','#private_key',"request_type"]
 MANDATORY_IMAGE_PARS = []
 
-APP_VERSION = '0.1.2'
+APP_VERSION = '0.1.3'
 
 def encrypt_string(hash_string):
     """Encrypts a string with sha256
@@ -89,7 +89,7 @@ def flatten_json(json_dict, delim):
 
     return flattened_dict
 
-def get_json_response(params):
+def get_json_response(params,url,request_type):
     """Uses the API to get a single response
 
         The XML response of the API is converted to JSON.
@@ -102,7 +102,7 @@ def get_json_response(params):
             json_response (dict): Holds the JSON response
     """
     # sending get request and saving the response as response object
-    response = requests.get(url=URL, params=params)
+    response = requests.get(url=url+request_type, params=params)
 
     if response.status_code == 200:
         # If successful return the result
@@ -183,32 +183,44 @@ class Component(KBCEnvHandler):
 
         PARAM_API_KEY = params['#api_key']
         PARAM_PRIVATE_KEY = params['#private_key']
+        PARAM_REQUEST_TYPE = params['request_type']
+
+        if PARAM_REQUEST_TYPE not in ["detail","extended","ultimate"]:
+            logging.error('API request type is not available, choose from the list'
+                          ' : detail, extended, ultimate')
+            exit(1)
 
         #  make manifest file for output, set primary key and incremental load
         self.configuration.write_table_manifest(file_name=RESULT_FILE_PATH)
         self.configuration.write_table_manifest(file_name=NO_RESULT_FILE_PATH)
 
         logging.info('Running ....')
-        with open(SOURCE_FILE_PATH, 'r') as input:
-            icos = get_icos_from_file(input)
-            json_responses = []
-            bad_ico = []
+        try:
+            f = open(SOURCE_FILE_PATH)
+        except IOError:
+            logging.error('Input ICO file is not accessible,'
+                         ' make sure it is added in the input mapping')
+            exit(1)
 
-            for ico in icos:
-                hash_key = get_hash(PARAM_API_KEY, PARAM_PRIVATE_KEY, str(ico))
-                # defining a params dict for the parameters to be sent to the API
-                PARAMS = {'ico': str(ico),
-                          "apiKey": PARAM_API_KEY,
-                          "Hash": hash_key}
-                logging.info(f"Getting Finstat data for ico : {ico}")
-                response = get_json_response(PARAMS)
-                if response:
-                    json_responses.append(response)
-                else:
-                    bad_ico.append({"unavailable_ico": ico})
+        icos = get_icos_from_file(SOURCE_FILE_PATH)
+        json_responses = []
+        bad_ico = []
 
-            for i, response in enumerate(json_responses):
-                json_responses[i] = flatten_json(json_responses[i], "__")
+        for ico in icos:
+            hash_key = get_hash(PARAM_API_KEY, PARAM_PRIVATE_KEY, str(ico))
+            # defining a params dict for the parameters to be sent to the API
+            PARAMS = {'ico': str(ico),
+                      "apiKey": PARAM_API_KEY,
+                      "Hash": hash_key}
+            logging.info(f"Getting Finstat data for ico : {ico}")
+            response = get_json_response(PARAMS,URL,PARAM_REQUEST_TYPE)
+            if response:
+                json_responses.append(response)
+            else:
+                bad_ico.append({"unavailable_ico": ico})
+
+        for i, response in enumerate(json_responses):
+            json_responses[i] = flatten_json(json_responses[i], "__")
 
         if len(json_responses) > 0:
             response_df = pd.DataFrame.from_records(json_responses)

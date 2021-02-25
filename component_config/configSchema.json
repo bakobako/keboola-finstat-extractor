@@ -3,7 +3,8 @@
   "title": "Parameters",
   "required": [
     "#api_key",
-    "#private_key"
+    "#private_key",
+    "request_type"
   ],
   "properties": {
     "#api_key": {
@@ -11,6 +12,7 @@
       "title": "API Key",
       "format": "password",
       "default": "",
+      "description": "API Key provided with your finstat account",
       "minLength": 1,
       "propertyOrder": 1
     },
@@ -18,9 +20,18 @@
       "type": "string",
       "title": "API Private Key",
       "format": "password",
+      "description": "Private Key provided with your finstat account",
       "default": "",
       "minLength": 1,
       "propertyOrder": 2
+    },
+    "request_type": {
+      "type": "string",
+      "title": "API Request type",
+      "description": "Type of request, limited by your finstat account type. Options are : detail, extended, ultimate. Check Finstat documentation for more information",
+      "default": "",
+      "minLength": 1,
+      "propertyOrder": 3
     }
   }
 }
